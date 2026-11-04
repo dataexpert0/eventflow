@@ -194,4 +194,66 @@ class OrderTest {
                 )
         );
     }
+
+    @Test
+    void shouldMergeItemsWithSameProductId() {
+        Order order = new Order(UUID.randomUUID());
+        UUID productId = UUID.randomUUID();
+
+        order.addItem(new OrderItem(
+                productId,
+                2,
+                new BigDecimal("49.90")
+        ));
+
+        order.addItem(new OrderItem(
+                productId,
+                3,
+                new BigDecimal("49.90")
+        ));
+
+        assertEquals(1, order.getItems().size());
+        assertEquals(5, order.getItems().getFirst().quantity());
+
+        assertEquals(
+                0,
+                new BigDecimal("249.50")
+                        .compareTo(order.calculateTotal())
+        );
+    }
+
+    @Test
+    void shouldRejectPriceWithMoreThanTwoDecimalPlaces() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new OrderItem(
+                        UUID.randomUUID(),
+                        1,
+                        new BigDecimal("19.999")
+                )
+        );
+    }
+
+    @Test
+    void shouldRejectDifferentPricesForSameProduct() {
+        Order order = new Order(UUID.randomUUID());
+        UUID productId = UUID.randomUUID();
+
+        order.addItem(new OrderItem(
+                productId,
+                1,
+                new BigDecimal("50.00")
+        ));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> order.addItem(new OrderItem(
+                        productId,
+                        1,
+                        new BigDecimal("60.00")
+                ))
+        );
+
+        assertEquals(1, order.getItems().size());
+    }
 }
