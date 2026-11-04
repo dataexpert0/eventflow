@@ -19,6 +19,13 @@ public record OrderItem(UUID productId, int quantity, BigDecimal unitPrice) {
         {
             throw new IllegalArgumentException("Unit price cannot be negative!");
         }
+
+        if (unitPrice.scale() > 2)
+        {
+            throw new IllegalArgumentException(
+                    "Unit price cannot have more than two decimal places."
+            );
+        }
     }
     public BigDecimal subtotal()
     {

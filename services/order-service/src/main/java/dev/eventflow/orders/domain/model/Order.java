@@ -13,7 +13,6 @@ public class Order {
 
     private OrderStatus status;
 
-    // Declarando o construtor
     public Order(UUID customerId) {
         this.id = UUID.randomUUID();
         this.customerId = Objects.requireNonNull(customerId, "Customer ID is required!");
@@ -33,11 +32,42 @@ public class Order {
         return List.copyOf(items);
     }
 
+    public UUID getCustomerId()
+    {
+        return customerId;
+    }
+
     public void addItem(OrderItem item) {
-        if (status != OrderStatus.PENDING) {
+        if (status != OrderStatus.PENDING)
+        {
             throw new IllegalStateException("Cannot modify a non-pending order!");
         }
-        items.add(Objects.requireNonNull(item));
+
+        Objects.requireNonNull(item, "Order item is required");
+
+        for (int i = 0; i < items.size(); i++) {
+            OrderItem existing = items.get(i);
+
+            if (existing.productId().equals(item.productId())) {
+                if (existing.unitPrice().compareTo(item.unitPrice()) != 0) {
+                    throw new IllegalArgumentException("Same product cannot have different unit prices.");
+                }
+
+                int mergedQuantity = Math.addExact(
+                        existing.quantity(),
+                        item.quantity()
+                );
+
+                items.set(i, new OrderItem(
+                        existing.productId(),
+                        mergedQuantity,
+                        existing.unitPrice()
+                ));
+
+                return;
+            }
+        }
+        items.add(item);
     }
 
     public BigDecimal calculateTotal() {
