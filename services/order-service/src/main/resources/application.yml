@@ -3,6 +3,12 @@ spring:
   application:
     name: order-service
 
+  jpa:
+    open-in-view: false
+    hibernate:
+    ddl-auto: validate
+    show-sql: false
+
   datasource:
     url: jdbc:postgresql://localhost:5432/eventflow_orders
     username: eventflow
