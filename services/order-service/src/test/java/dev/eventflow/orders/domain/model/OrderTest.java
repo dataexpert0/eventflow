@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -255,5 +256,49 @@ class OrderTest {
         );
 
         assertEquals(1, order.getItems().size());
+    }
+
+    @Test
+    void shouldRestoreOrderWithOriginalIdentity() {
+        UUID orderId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+
+        Order order = Order.restore(
+                orderId,
+                customerId,
+                OrderStatus.PENDING,
+                List.of()
+        );
+
+        assertEquals(orderId, order.getId());
+        assertEquals(customerId, order.getCustomerId());
+        assertEquals(OrderStatus.PENDING, order.getStatus());
+    }
+
+    @Test
+    void shouldRestoreConfirmedOrderWithItems() {
+        UUID productId = UUID.randomUUID();
+
+        OrderItem item = new OrderItem(
+                productId,
+                2,
+                new BigDecimal("49.90")
+        );
+
+        Order order = Order.restore(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                OrderStatus.CONFIRMED,
+                List.of(item)
+        );
+
+        assertEquals(OrderStatus.CONFIRMED, order.getStatus());
+        assertEquals(1, order.getItems().size());
+
+        assertEquals(
+                0,
+                new BigDecimal("99.80")
+                        .compareTo(order.calculateTotal())
+        );
     }
 }

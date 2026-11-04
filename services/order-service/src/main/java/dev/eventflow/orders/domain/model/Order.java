@@ -14,10 +14,52 @@ public class Order {
     private OrderStatus status;
 
     public Order(UUID customerId) {
-        this.id = UUID.randomUUID();
-        this.customerId = Objects.requireNonNull(customerId, "Customer ID is required!");
+        this(UUID.randomUUID(), customerId);
+    }
+
+    private Order(UUID id, UUID customerId) {
+        this.id = Objects.requireNonNull(
+                id, "Order ID is required"
+        );
+
+        this.customerId = Objects.requireNonNull(
+                customerId, "Customer ID is required"
+        );
+
         this.items = new ArrayList<>();
         this.status = OrderStatus.PENDING;
+    }
+
+    public static Order restore(
+            UUID id,
+            UUID customerId,
+            OrderStatus status,
+            List<OrderItem> items
+    ) {
+        Objects.requireNonNull(
+                status, "Order status is required"
+        );
+
+        Objects.requireNonNull(
+                items, "Order items are required"
+        );
+
+        Order order = new Order(id, customerId);
+
+        for (OrderItem item : items) {
+            order.addItem(item);
+        }
+
+        if (status == OrderStatus.CONFIRMED
+                && order.items.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Cannot restore a confirmed empty order"
+            );
+        }
+
+        order.status = status;
+
+        return order;
     }
 
     public UUID getId() {
