@@ -10,11 +10,20 @@ import dev.eventflow.orders.application.usecase.get.GetOrderUseCase;
 import dev.eventflow.orders.domain.model.Order;
 import jakarta.validation.Valid;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.UUID;
+
+@Tag(
+        name = "Orders",
+        description = "Order creation and retrieval operations"
+)
 
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -30,6 +39,19 @@ public class OrderController {
         this.createOrderUseCase = createOrderUseCase;
         this.getOrderUseCase = getOrderUseCase;
     }
+
+    @Operation(
+            summary = "Create a new order",
+            description = "Creates an order with PENDING status."
+    )
+    @ApiResponse(
+            responseCode = "201",
+            description = "Order created successfully"
+    )
+    @ApiResponse(
+            responseCode = "400",
+            description = "Invalid order request"
+    )
 
     @PostMapping
     public ResponseEntity<OrderResponse> create(
@@ -59,6 +81,23 @@ public class OrderController {
                 .created(location)
                 .body(OrderResponse.fromDomain(order));
     }
+
+    @Operation(
+            summary = "Retrieve an order by ID",
+            description = "Returns an existing order using its UUID."
+    )
+    @ApiResponse(
+            responseCode = "200",
+            description = "Order found"
+    )
+    @ApiResponse(
+            responseCode = "400",
+            description = "Invalid order identifier"
+    )
+    @ApiResponse(
+            responseCode = "404",
+            description = "Order not found"
+    )
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderResponse> getById(
