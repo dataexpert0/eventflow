@@ -78,7 +78,7 @@ The GitHub Actions CI workflow runs Maven verification on pull requests targetin
 - [x] Spring Boot order service bootstrap
 - [x] Health endpoint and integration test
 - [x] GitHub Actions CI
-- [ ] PostgreSQL persistence and database migrations
+- [x] PostgreSQL persistence and database migrations
 - [ ] Order management REST endpoints
 - [ ] Inventory and notification services
 - [ ] Kafka event-driven communication
