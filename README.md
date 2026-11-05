@@ -3,7 +3,7 @@
 
 EventFlow is an order management platform built with Java, Spring Boot, and PostgreSQL, designed to evolve into an event-driven architecture using Apache Kafka.
 
-> **Project status:** v0.2.0 — Release Candidate.
+> **Project status:** v0.2.0 — Released.
 > The Order Service supports order creation and retrieval,
 > PostgreSQL persistence, REST APIs, and OpenAPI documentation.
 > Kafka-based communication and additional microservices
