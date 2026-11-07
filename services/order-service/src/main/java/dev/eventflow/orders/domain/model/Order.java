@@ -1,5 +1,7 @@
 package dev.eventflow.orders.domain.model;
 
+import dev.eventflow.orders.domain.exception.InvalidOrderStateTransitionException;
+
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,6 +12,7 @@ public class Order {
     private final UUID id;
     private final UUID customerId;
     private final List<OrderItem> items;
+    private Long version;
 
     private OrderStatus status;
 
@@ -28,6 +31,12 @@ public class Order {
 
         this.items = new ArrayList<>();
         this.status = OrderStatus.PENDING;
+        this.version = null;
+    }
+
+    public Long getVersion()
+    {
+        return version;
     }
 
     public static Order restore(
@@ -58,6 +67,29 @@ public class Order {
         }
 
         order.status = status;
+
+        return order;
+    }
+
+    public static Order restore(
+            UUID id,
+            UUID customerId,
+            OrderStatus status,
+            List<OrderItem> items,
+            Long version
+    ) {
+        Objects.requireNonNull(
+                version, "Order version is required"
+        );
+
+        if (version < 0) {
+            throw new IllegalArgumentException(
+                    "Order version cannot be negative"
+            );
+        }
+
+        Order order = restore(id, customerId, status, items);
+        order.version = version;
 
         return order;
     }
@@ -120,11 +152,15 @@ public class Order {
 
     public void confirm() {
         if (status != OrderStatus.PENDING) {
-            throw new IllegalStateException("Only pending orders can be confirmed!");
+            throw new InvalidOrderStateTransitionException(
+                    "Only pending orders can be confirmed!"
+            );
         }
 
         if (items.isEmpty()) {
-            throw new IllegalStateException("Cannot confirm an empty order!");
+            throw new InvalidOrderStateTransitionException(
+                    "Cannot confirm an empty order!"
+            );
         }
 
         status = OrderStatus.CONFIRMED;
@@ -133,7 +169,9 @@ public class Order {
     public void cancel() {
         if (status != OrderStatus.PENDING)
         {
-            throw new IllegalStateException("Only pending orders can be cancelled!");
+            throw new InvalidOrderStateTransitionException(
+                    "Only pending orders can be cancelled!"
+            );
         }
         status = OrderStatus.CANCELLED;
     }

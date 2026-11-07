@@ -115,10 +115,92 @@ Content-Type: application/json
 }
 ```
 
+
 Successful creation returns HTTP `201 Created`, including the
 generated order UUID and a `Location` header.
 
 Invalid requests return HTTP `400 Bad Request`.
+
+
+## Order Lifecycle
+
+EventFlow implements a state-based order lifecycle with
+domain-level business rules and transactional persistence.
+
+### State Transitions
+
+```text
+               ┌─────────┐
+               │ PENDING │
+               └────┬────┘
+                    │
+           ┌────────┴────────┐
+           │                 │
+       confirm()          cancel()
+           │                 │
+           ▼                 ▼
+     ┌───────────┐     ┌───────────┐
+     │ CONFIRMED │     │ CANCELLED │
+     └───────────┘     └───────────┘
+```
+
+- Orders are initially created with PENDING status.
+- Only pending orders can be confirmed or cancelled.
+- Confirmation requires at least one order item.
+- Confirmed and cancelled orders cannot transition
+  to another state.
+
+### REST Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/orders` | Create a new order |
+| GET | `/api/v1/orders/{id}` | Retrieve an order |
+| POST | `/api/v1/orders/{id}/confirm` | Confirm a pending order |
+| POST | `/api/v1/orders/{id}/cancel` | Cancel a pending order |
+
+### HTTP Responses
+
+| Status | Description |
+|--------|-------------|
+| 200 | Operation completed successfully |
+| 201 | Order created |
+| 400 | Invalid request or identifier |
+| 404 | Order not found |
+| 409 | Invalid state transition or version conflict |
+
+Error responses use **RFC 9457 Problem Details**.
+
+## Concurrency Control
+
+EventFlow implements optimistic concurrency control using
+Hibernate's `@Version` mechanism.
+
+Each persisted order maintains a version number that is
+incremented when the order entity is updated.
+
+The application also validates the version carried by
+the domain aggregate before applying changes.
+
+This provides two complementary safeguards:
+
+1. **Stale aggregate detection:** rejects updates based
+   on an outdated order version.
+2. **Database-level optimistic locking:** detects
+   concurrent modifications during persistence.
+
+When a version conflict is detected, the API returns
+HTTP `409 Conflict`.
+
+### Database Migrations
+
+Database schema changes are managed with Flyway.
+
+- `V1__create_orders_tables.sql` — Initial schema.
+- `V2__add_order_version.sql` — Order version column.
+
+Existing migrations are preserved to maintain
+schema history integrity.
 
 ## Running Locally
 

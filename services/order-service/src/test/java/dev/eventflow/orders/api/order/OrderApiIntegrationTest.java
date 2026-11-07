@@ -173,4 +173,144 @@ class OrderApiIntegrationTest {
                         "$.paths['/api/v1/orders/{id}'].get"
                 ).exists());
     }
+
+    @Test
+    void shouldCreateConfirmAndRetrieveOrder()
+            throws Exception {
+
+        UUID customerId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+
+        String requestBody = """
+            {
+              "customerId": "%s",
+              "items": [
+                {
+                  "productId": "%s",
+                  "quantity": 2,
+                  "unitPrice": 25.00
+                }
+              ]
+            }
+            """.formatted(customerId, productId);
+
+        String responseBody = mockMvc.perform(
+                        post("/api/v1/orders")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                )
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String orderId = JsonPath.read(responseBody, "$.id");
+
+        mockMvc.perform(
+                        post("/api/v1/orders/{id}/confirm", orderId)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status")
+                        .value("CONFIRMED"));
+
+        mockMvc.perform(
+                        get("/api/v1/orders/{id}", orderId)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(orderId))
+                .andExpect(jsonPath("$.status")
+                        .value("CONFIRMED"));
+    }
+
+    @Test
+    void shouldRejectConfirmingCancelledOrder()
+            throws Exception {
+
+        UUID customerId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+
+        String requestBody = """
+            {
+              "customerId": "%s",
+              "items": [
+                {
+                  "productId": "%s",
+                  "quantity": 1,
+                  "unitPrice": 50.00
+                }
+              ]
+            }
+            """.formatted(customerId, productId);
+
+        String responseBody = mockMvc.perform(
+                        post("/api/v1/orders")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                )
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String orderId = JsonPath.read(responseBody, "$.id");
+
+        // Cancel the order.
+        mockMvc.perform(
+                        post("/api/v1/orders/{id}/cancel", orderId)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status")
+                        .value("CANCELLED"));
+
+        // A canceled order cannot be confirmed.
+        mockMvc.perform(
+                        post("/api/v1/orders/{id}/confirm", orderId)
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.title")
+                        .value("Invalid order state transition"));
+
+        // The canceled state must remain persisted.
+        mockMvc.perform(
+                        get("/api/v1/orders/{id}", orderId)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status")
+                        .value("CANCELLED"));
+    }
+    @Test
+    void shouldReturnNotFoundWhenConfirmingUnknownOrder()
+            throws Exception {
+        UUID unknownId = UUID.randomUUID();
+
+        mockMvc.perform(post(
+                        "/api/v1/orders/{id}/confirm",
+                        unknownId
+                ))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenCancellingUnknownOrder()
+            throws Exception {
+        UUID unknownId = UUID.randomUUID();
+
+        mockMvc.perform(post(
+                        "/api/v1/orders/{id}/cancel",
+                        unknownId
+                ))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldReturnBadRequestForMalformedOrderId()
+            throws Exception {
+        mockMvc.perform(post(
+                        "/api/v1/orders/{id}/confirm",
+                        "invalid-uuid"
+                ))
+                .andExpect(status().isBadRequest());
+    }
+
 }

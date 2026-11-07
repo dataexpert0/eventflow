@@ -4,6 +4,7 @@ package dev.eventflow.orders.infrastructure.persistence.entity;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -43,6 +44,31 @@ public class OrderItemEntity {
     ) {
         this.id = id;
         this.productId = productId;
+        this.quantity = quantity;
+        this.unitPrice = unitPrice;
+    }
+
+    public void updateValues(
+            int quantity,
+            BigDecimal unitPrice
+    ) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException(
+                    "Quantity must be positive"
+            );
+        }
+
+        Objects.requireNonNull(
+                unitPrice, "Unit price is required"
+        );
+
+        if (unitPrice.signum() < 0
+                || unitPrice.scale() > 2) {
+            throw new IllegalArgumentException(
+                    "Invalid unit price"
+            );
+        }
+
         this.quantity = quantity;
         this.unitPrice = unitPrice;
     }

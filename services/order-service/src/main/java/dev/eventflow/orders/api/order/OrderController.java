@@ -8,6 +8,13 @@ import dev.eventflow.orders.application.usecase.create.CreateOrderItemCommand;
 import dev.eventflow.orders.application.usecase.create.CreateOrderUseCase;
 import dev.eventflow.orders.application.usecase.get.GetOrderUseCase;
 import dev.eventflow.orders.domain.model.Order;
+import dev.eventflow.orders.application.usecase.confirm.ConfirmOrderUseCase;
+import dev.eventflow.orders.application.usecase.cancel.CancelOrderUseCase;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+
 import jakarta.validation.Valid;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,13 +38,19 @@ public class OrderController {
 
     private final CreateOrderUseCase createOrderUseCase;
     private final GetOrderUseCase getOrderUseCase;
+    private final ConfirmOrderUseCase confirmOrderUseCase;
+    private final CancelOrderUseCase cancelOrderUseCase;
 
     public OrderController(
             CreateOrderUseCase createOrderUseCase,
-            GetOrderUseCase getOrderUseCase
+            GetOrderUseCase getOrderUseCase,
+            ConfirmOrderUseCase confirmOrderUseCase,
+            CancelOrderUseCase cancelOrderUseCase
     ) {
         this.createOrderUseCase = createOrderUseCase;
         this.getOrderUseCase = getOrderUseCase;
+        this.confirmOrderUseCase = confirmOrderUseCase;
+        this.cancelOrderUseCase = cancelOrderUseCase;
     }
 
     @Operation(
@@ -110,4 +123,71 @@ public class OrderController {
                         ResponseEntity.notFound().build()
                 );
     }
+
+    @Operation(
+            summary = "Confirm an order",
+            description = "Confirms a pending order containing at least one item."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Order confirmed successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid order identifier"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Order not found"
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Invalid order state or version conflict"
+            )
+    })
+    @PostMapping("/{id}/confirm")
+    public ResponseEntity<OrderResponse> confirmOrder(
+            @PathVariable UUID id
+    ) {
+        return confirmOrderUseCase.execute(id)
+                .map(order -> ResponseEntity.ok(
+                        OrderResponse.fromDomain(order)
+                ))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Operation(
+            summary = "Cancel an order",
+            description = "Cancels an order that is currently pending."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Order cancelled successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid order identifier"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Order not found"
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Invalid order state or version conflict"
+            )
+    })
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<OrderResponse> cancelOrder(
+            @PathVariable UUID id
+    ) {
+        return cancelOrderUseCase.execute(id)
+                .map(order -> ResponseEntity.ok(
+                        OrderResponse.fromDomain(order)
+                ))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
 }

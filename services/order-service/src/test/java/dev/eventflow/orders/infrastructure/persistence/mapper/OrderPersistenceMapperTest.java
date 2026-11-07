@@ -9,6 +9,7 @@ import dev.eventflow.orders.infrastructure.persistence.entity.OrderEntity;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -75,5 +76,102 @@ class OrderPersistenceMapperTest {
                 original.calculateTotal()
                         .compareTo(restored.calculateTotal())
         );
+    }
+
+    @Test
+    void shouldUpdateEntityWithoutChangingExistingItemId() {
+        UUID productId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+
+        Order order = new Order(customerId);
+
+        order.addItem(new OrderItem(
+                productId,
+                2,
+                new BigDecimal("25.00")
+        ));
+
+        OrderEntity entity = mapper.toEntity(order);
+
+        UUID originalItemId =
+                entity.getItems().getFirst().getId();
+
+        var originalCreatedAt = entity.getCreatedAt();
+
+        Order updatedOrder = Order.restore(
+                order.getId(),
+                customerId,
+                OrderStatus.PENDING,
+                List.of(new OrderItem(
+                        productId,
+                        5,
+                        new BigDecimal("25.00")
+                ))
+        );
+
+        mapper.updateEntity(updatedOrder, entity);
+
+        assertEquals(
+                originalItemId,
+                entity.getItems().getFirst().getId()
+        );
+
+        assertEquals(
+                5,
+                entity.getItems().getFirst().getQuantity()
+        );
+
+        assertEquals(originalCreatedAt, entity.getCreatedAt());
+    }
+
+    @Test
+    void shouldRejectChangingCustomerOfExistingOrder() {
+        UUID originalCustomerId = UUID.randomUUID();
+        UUID anotherCustomerId = UUID.randomUUID();
+
+        Order original = new Order(originalCustomerId);
+        OrderEntity entity = mapper.toEntity(original);
+
+        Order changed = Order.restore(
+                original.getId(),
+                anotherCustomerId,
+                OrderStatus.PENDING,
+                List.of()
+        );
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> mapper.updateEntity(changed, entity)
+        );
+
+        assertEquals(
+                "Cannot change the customer of an existing order",
+                exception.getMessage()
+        );
+
+        assertEquals(
+                originalCustomerId,
+                entity.getCustomerId()
+        );
+    }
+
+
+    @Test
+    void shouldRestorePersistenceVersionFromEntity() {
+        UUID orderId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+
+        Order original = Order.restore(
+                orderId,
+                customerId,
+                OrderStatus.PENDING,
+                List.of(),
+                5L
+        );
+
+        OrderEntity entity = mapper.toEntity(original);
+
+        // A new JPA entity has no persistence version yet.
+        assertNull(entity.getVersion());
     }
 }

@@ -1,14 +1,15 @@
 
 package dev.eventflow.orders.infrastructure.persistence.repository;
 
+import dev.eventflow.orders.domain.exception.OrderVersionConflictException;
 import dev.eventflow.orders.domain.model.Order;
 import dev.eventflow.orders.domain.repository.OrderRepository;
 import dev.eventflow.orders.infrastructure.persistence.mapper.OrderPersistenceMapper;
-import dev.eventflow.orders.domain.exception.OrderUpdateNotSupportedException;
 
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,15 +33,33 @@ public class JpaOrderRepositoryAdapter implements OrderRepository {
                 .map(mapper::toDomain);
     }
 
+
     @Override
     @Transactional
     public Order save(Order order) {
-        if (repository.existsById(order.getId())) {
-            throw new OrderUpdateNotSupportedException();
-        }
+        Objects.requireNonNull(order, "Order is required!");
 
-        var entity = mapper.toEntity(order);
+        return repository.findById(order.getId())
+                .map(entity -> {
+                    if (!Objects.equals(
+                            order.getVersion(),
+                            entity.getVersion()
+                    )) {
+                        throw new OrderVersionConflictException();
+                    }
 
-        return mapper.toDomain(repository.saveAndFlush(entity));
+                    mapper.updateEntity(order, entity);
+
+                    repository.flush();
+
+                    return mapper.toDomain(entity);
+                })
+                .orElseGet(() -> {
+                    var entity = mapper.toEntity(order);
+
+                    return mapper.toDomain(
+                            repository.saveAndFlush(entity)
+                    );
+                });
     }
 }

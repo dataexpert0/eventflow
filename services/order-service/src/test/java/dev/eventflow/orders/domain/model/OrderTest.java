@@ -1,6 +1,7 @@
 
 package dev.eventflow.orders.domain.model;
 
+import dev.eventflow.orders.domain.exception.InvalidOrderStateTransitionException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -299,6 +300,60 @@ class OrderTest {
                 0,
                 new BigDecimal("99.80")
                         .compareTo(order.calculateTotal())
+        );
+    }
+
+    @Test
+    void shouldCreateOrderWithoutPersistenceVersion() {
+        Order order = new Order(UUID.randomUUID());
+
+        assertNull(order.getVersion());
+    }
+
+    @Test
+    void shouldRestoreOrderWithPersistenceVersion() {
+        UUID orderId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+
+        Order order = Order.restore(
+                orderId,
+                customerId,
+                OrderStatus.PENDING,
+                List.of(),
+                3L
+        );
+
+        assertAll(
+                () -> assertEquals(orderId, order.getId()),
+                () -> assertEquals(customerId, order.getCustomerId()),
+                () -> assertEquals(OrderStatus.PENDING, order.getStatus()),
+                () -> assertEquals(3L, order.getVersion())
+        );
+    }
+
+    @Test
+    void shouldRejectNegativePersistenceVersion() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> Order.restore(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        OrderStatus.PENDING,
+                        List.of(),
+                        -1L
+                )
+        );
+    }
+
+    @Test
+    void shouldThrowSpecificExceptionForInvalidConfirmation() {
+        Order order = new Order(UUID.randomUUID());
+
+        order.cancel();
+
+        assertThrows(
+                InvalidOrderStateTransitionException.class,
+                order::confirm
         );
     }
 }
