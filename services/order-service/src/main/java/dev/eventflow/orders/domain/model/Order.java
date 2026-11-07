@@ -10,6 +10,7 @@ public class Order {
     private final UUID id;
     private final UUID customerId;
     private final List<OrderItem> items;
+    private Long version;
 
     private OrderStatus status;
 
@@ -28,6 +29,12 @@ public class Order {
 
         this.items = new ArrayList<>();
         this.status = OrderStatus.PENDING;
+        this.version = null;
+    }
+
+    public Long getVersion()
+    {
+        return version;
     }
 
     public static Order restore(
@@ -58,6 +65,29 @@ public class Order {
         }
 
         order.status = status;
+
+        return order;
+    }
+
+    public static Order restore(
+            UUID id,
+            UUID customerId,
+            OrderStatus status,
+            List<OrderItem> items,
+            Long version
+    ) {
+        Objects.requireNonNull(
+                version, "Order version is required"
+        );
+
+        if (version < 0) {
+            throw new IllegalArgumentException(
+                    "Order version cannot be negative"
+            );
+        }
+
+        Order order = restore(id, customerId, status, items);
+        order.version = version;
 
         return order;
     }

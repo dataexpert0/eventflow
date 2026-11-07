@@ -53,11 +53,87 @@ public class OrderPersistenceMapper {
                 ))
                 .toList();
 
+
+        if (entity.getVersion() == null) {
+            return Order.restore(
+                    entity.getId(),
+                    entity.getCustomerId(),
+                    entity.getStatus(),
+                    items
+            );
+        }
+
         return Order.restore(
                 entity.getId(),
                 entity.getCustomerId(),
                 entity.getStatus(),
-                items
+                items,
+                entity.getVersion()
+        );
+    }
+
+    public void updateEntity(Order order, OrderEntity entity) {
+        Objects.requireNonNull(order, "Order is required");
+        Objects.requireNonNull(entity, "Order entity is required");
+
+        if (!order.getId().equals(entity.getId())) {
+            throw new IllegalArgumentException(
+                    "Order and entity IDs do not match"
+            );
+        }
+
+        if (!order.getCustomerId().equals(entity.getCustomerId())) {
+            throw new IllegalArgumentException(
+                    "Cannot change the customer of an existing order"
+            );
+        }
+
+        entity.updateStatus(order.getStatus());
+
+        // Remove items that no longer exist in the domain.
+        for (OrderItemEntity existing : entity.getItems()) {
+            boolean stillExists = order.getItems().stream()
+                    .anyMatch(item ->
+                            item.productId().equals(
+                                    existing.getProductId()
+                            )
+                    );
+
+            if (!stillExists) {
+                entity.removeItem(existing);
+            }
+        }
+
+        // Update existing items or add new ones.
+        for (OrderItem item : order.getItems()) {
+            OrderItemEntity existing = entity.getItems()
+                    .stream()
+                    .filter(candidate ->
+                            candidate.getProductId()
+                                    .equals(item.productId())
+                    )
+                    .findFirst()
+                    .orElse(null);
+
+            if (existing != null) {
+                existing.updateValues(
+                        item.quantity(),
+                        item.unitPrice()
+                );
+            } else {
+                OrderItemEntity newItem = new OrderItemEntity(
+                        UUID.randomUUID(),
+                        item.productId(),
+                        item.quantity(),
+                        item.unitPrice()
+                );
+
+                entity.addItem(newItem);
+            }
+        }
+
+        entity.updateTimestamp(
+                OffsetDateTime.now(ZoneOffset.UTC)
         );
     }
 }
