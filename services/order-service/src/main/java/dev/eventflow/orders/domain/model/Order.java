@@ -1,5 +1,7 @@
 package dev.eventflow.orders.domain.model;
 
+import dev.eventflow.orders.domain.exception.InvalidOrderStateTransitionException;
+
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -150,11 +152,15 @@ public class Order {
 
     public void confirm() {
         if (status != OrderStatus.PENDING) {
-            throw new IllegalStateException("Only pending orders can be confirmed!");
+            throw new InvalidOrderStateTransitionException(
+                    "Only pending orders can be confirmed!"
+            );
         }
 
         if (items.isEmpty()) {
-            throw new IllegalStateException("Cannot confirm an empty order!");
+            throw new InvalidOrderStateTransitionException(
+                    "Cannot confirm an empty order!"
+            );
         }
 
         status = OrderStatus.CONFIRMED;
@@ -163,7 +169,9 @@ public class Order {
     public void cancel() {
         if (status != OrderStatus.PENDING)
         {
-            throw new IllegalStateException("Only pending orders can be cancelled!");
+            throw new InvalidOrderStateTransitionException(
+                    "Only pending orders can be cancelled!"
+            );
         }
         status = OrderStatus.CANCELLED;
     }

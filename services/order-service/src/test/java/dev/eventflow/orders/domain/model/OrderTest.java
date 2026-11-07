@@ -1,6 +1,7 @@
 
 package dev.eventflow.orders.domain.model;
 
+import dev.eventflow.orders.domain.exception.InvalidOrderStateTransitionException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -341,6 +342,18 @@ class OrderTest {
                         List.of(),
                         -1L
                 )
+        );
+    }
+
+    @Test
+    void shouldThrowSpecificExceptionForInvalidConfirmation() {
+        Order order = new Order(UUID.randomUUID());
+
+        order.cancel();
+
+        assertThrows(
+                InvalidOrderStateTransitionException.class,
+                order::confirm
         );
     }
 }

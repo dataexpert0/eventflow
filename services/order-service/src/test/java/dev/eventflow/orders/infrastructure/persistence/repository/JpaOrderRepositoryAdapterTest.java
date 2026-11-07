@@ -6,28 +6,31 @@ import dev.eventflow.orders.domain.model.Order;
 import dev.eventflow.orders.domain.model.OrderItem;
 import dev.eventflow.orders.domain.model.OrderStatus;
 import dev.eventflow.orders.domain.repository.OrderRepository;
+import dev.eventflow.orders.infrastructure.persistence.entity.OrderEntity;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.OffsetDateTime;
 
+import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import jakarta.persistence.EntityManager;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.OptimisticLockException;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Testcontainers
@@ -49,6 +52,90 @@ class JpaOrderRepositoryAdapterTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
+
+    @Test
+    void shouldRejectConcurrentUpdatesUsingJpaVersion() {
+        Order order = new Order(UUID.randomUUID());
+        Order saved = repository.save(order);
+
+        UUID orderId = saved.getId();
+
+        EntityManager managerA =
+                entityManagerFactory.createEntityManager();
+
+        EntityManager managerB =
+                entityManagerFactory.createEntityManager();
+
+        try {
+            // Both transactions begin independently.
+            managerA.getTransaction().begin();
+            managerB.getTransaction().begin();
+
+            OrderEntity entityA =
+                    managerA.find(OrderEntity.class, orderId);
+
+            OrderEntity entityB =
+                    managerB.find(OrderEntity.class, orderId);
+
+            // Both transactions read the same version.
+            assertEquals(0L, entityA.getVersion());
+            assertEquals(0L, entityB.getVersion());
+
+            // Transaction A confirms the order.
+            entityA.updateStatus(OrderStatus.CONFIRMED);
+
+            managerA.flush();
+            managerA.getTransaction().commit();
+
+            // Transaction B still holds version 0.
+            entityB.updateStatus(OrderStatus.CANCELLED);
+
+            // Hibernate must reject the stale update.
+            assertThrows(
+                    OptimisticLockException.class,
+                    managerB::flush
+            );
+
+        } finally {
+            if (managerA.getTransaction().isActive()) {
+                managerA.getTransaction().rollback();
+            }
+
+            if (managerB.getTransaction().isActive()) {
+                managerB.getTransaction().rollback();
+            }
+
+            managerA.close();
+            managerB.close();
+        }
+
+        // Confirm the winning transaction was preserved.
+        String persistedStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM orders WHERE id = ?",
+                String.class,
+                orderId
+        );
+
+        Long persistedVersion = jdbcTemplate.queryForObject(
+                "SELECT version FROM orders WHERE id = ?",
+                Long.class,
+                orderId
+        );
+
+        assertAll(
+                () -> assertEquals(
+                        "CONFIRMED",
+                        persistedStatus
+                ),
+                () -> assertEquals(
+                        1L,
+                        persistedVersion
+                )
+        );
+    }
 
     @Test
     void shouldPersistAndRetrieveOrder() {
