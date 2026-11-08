@@ -18,6 +18,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.rabbitmq.RabbitMQContainer;
 
+import java.time.Duration;
+import static org.awaitility.Awaitility.await;
+
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
@@ -74,6 +77,7 @@ class OrderEventListenerIntegrationTest {
         );
     }
 
+
     private void sendEvent(
             String eventId,
             String eventType
@@ -87,9 +91,48 @@ class OrderEventListenerIntegrationTest {
                 MessageProperties.CONTENT_TYPE_JSON
         );
 
+        String payload = """
+            {
+                "orderId": "%s",
+                "status": "PENDING"
+            }
+            """.formatted(UUID.randomUUID());
+
         Message message = new Message(
-                "{\"status\":\"PENDING\"}"
-                        .getBytes(StandardCharsets.UTF_8),
+                payload.getBytes(StandardCharsets.UTF_8),
+                properties
+        );
+
+        rabbitTemplate.send(
+                NotificationRabbitConfiguration.EXCHANGE,
+                "orders.created",
+                message
+        );
+    }
+
+    private void sendEvent(
+            String eventId,
+            String eventType,
+            UUID orderId
+    ) {
+        MessageProperties properties =
+                new MessageProperties();
+
+        properties.setMessageId(eventId);
+        properties.setHeader("eventType", eventType);
+        properties.setContentType(
+                MessageProperties.CONTENT_TYPE_JSON
+        );
+
+        String payload = """
+            {
+                "orderId": "%s",
+                "status": "PENDING"
+            }
+            """.formatted(orderId);
+
+        Message message = new Message(
+                payload.getBytes(StandardCharsets.UTF_8),
                 properties
         );
 
@@ -117,16 +160,45 @@ class OrderEventListenerIntegrationTest {
     @Test
     void shouldProcessDuplicateEventOnlyOnce() {
         UUID eventId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
 
-        sendEvent(eventId.toString(), "OrderCreated");
-        sendEvent(eventId.toString(), "OrderCreated");
+        sendEvent(
+                eventId.toString(),
+                "OrderCreated",
+                orderId
+        );
 
-        // Confirm that the listener received both deliveries.
+        sendEvent(
+                eventId.toString(),
+                "OrderCreated",
+                orderId
+        );
+
+        await()
+                .atMost(Duration.ofSeconds(15))
+                .pollInterval(Duration.ofMillis(100))
+                .untilAsserted(() -> {
+                    assertEquals(
+                            1,
+                            countEvents(eventId)
+                    );
+
+                    Integer notifications =
+                            jdbcTemplate.queryForObject(
+                                    """
+                                    SELECT COUNT(*)
+                                    FROM notifications
+                                    WHERE event_id = ?
+                                    """,
+                                    Integer.class,
+                                    eventId
+                            );
+
+                    assertEquals(1, notifications);
+                });
+
         verify(listener, timeout(10000).times(2))
                 .receive(any(Message.class));
-
-        // Both deliveries share the same event ID.
-        assertEquals(1, countEvents(eventId));
     }
 
     @Test
