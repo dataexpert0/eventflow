@@ -1,0 +1,31 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:127.0.0.1}:${POSTGRES_PORT:5432}/eventflow_notifications
+    username: ${POSTGRES_USER:eventflow}
+    password: ${POSTGRES_PASSWORD}
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  application:
+    name: notification-service
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:eventflow}
+    password: ${RABBITMQ_PASSWORD}
+
+    listener:
+      simple:
+        concurrency: 1
+        max-concurrency: 1
+        default-requeue-rejected: false
+
+logging:
+  level:
+    dev.eventflow.notifications: INFO

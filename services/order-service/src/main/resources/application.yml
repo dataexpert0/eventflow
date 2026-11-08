@@ -1,5 +1,23 @@
 
+eventflow:
+  outbox:
+    enabled: ${OUTBOX_ENABLED:false}
+    batch-size: 10
+    lease: PT5M
+    poll-interval-ms: 5000
+    initial-delay-ms: 5000
+
 spring:
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:eventflow}
+    password: ${RABBITMQ_PASSWORD}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+
   application:
     name: order-service
 

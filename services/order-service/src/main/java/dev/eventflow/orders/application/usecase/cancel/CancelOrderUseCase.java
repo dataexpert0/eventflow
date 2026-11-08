@@ -11,13 +11,25 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+import dev.eventflow.orders.domain.event.OutboxEvent;
+import dev.eventflow.orders.domain.repository.OutboxEventRepository;
+
 @Service
 public class CancelOrderUseCase {
 
     private final OrderRepository repository;
+    private final OutboxEventRepository outboxRepository;
 
-    public CancelOrderUseCase(OrderRepository repository) {
-        this.repository = Objects.requireNonNull(repository);
+    public CancelOrderUseCase(OrderRepository repository, OutboxEventRepository outboxRepository) {
+        this.repository = Objects.requireNonNull(
+                repository,
+                "Order repository is required"
+        );
+
+        this.outboxRepository = Objects.requireNonNull(
+                outboxRepository,
+                "Outbox repository is required"
+        );
     }
 
     @Transactional
@@ -34,6 +46,23 @@ public class CancelOrderUseCase {
 
         order.cancel();
 
-        return Optional.of(repository.save(order));
+        Order saved = repository.save(order);
+
+        String payload = """
+        {
+            "orderId": "%s",
+            "status": "CANCELLED"
+        }
+        """.formatted(saved.getId());
+
+        OutboxEvent event = OutboxEvent.pending(
+                saved.getId(),
+                "OrderCancelled",
+                payload
+        );
+
+        outboxRepository.save(event);
+
+        return Optional.of(saved);
     }
 }

@@ -699,4 +699,19 @@ class JpaOrderRepositoryAdapterTest {
                 )
         );
     }
+
+    @Test
+    void shouldCreateOutboxEventsTable() {
+        String tableName = jdbcTemplate.queryForObject(
+                """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'outbox_events'
+                """,
+                String.class
+        );
+
+        assertEquals("outbox_events", tableName);
+    }
 }

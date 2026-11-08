@@ -29,6 +29,7 @@
 
     <modules>
         <module>services/order-service</module>
+        <module>services/notification-service</module>
     </modules>
 
 </project>
