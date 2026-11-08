@@ -1,13 +1,16 @@
 
 package dev.eventflow.orders.application.usecase.cancel;
 
+import dev.eventflow.orders.domain.event.OutboxEvent;
 import dev.eventflow.orders.domain.model.Order;
 import dev.eventflow.orders.domain.model.OrderItem;
 import dev.eventflow.orders.domain.model.OrderStatus;
 import dev.eventflow.orders.domain.repository.OrderRepository;
 
+import dev.eventflow.orders.domain.repository.OutboxEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -19,12 +22,18 @@ import static org.mockito.Mockito.*;
 class CancelOrderUseCaseTest {
 
     private OrderRepository repository;
+    private OutboxEventRepository outboxRepository;
     private CancelOrderUseCase useCase;
 
     @BeforeEach
     void setUp() {
         repository = mock(OrderRepository.class);
-        useCase = new CancelOrderUseCase(repository);
+        outboxRepository = mock(OutboxEventRepository.class);
+
+        useCase = new CancelOrderUseCase(
+                repository,
+                outboxRepository
+        );
     }
 
     @Test
@@ -67,6 +76,7 @@ class CancelOrderUseCaseTest {
         assertTrue(result.isEmpty());
 
         verify(repository, never()).save(any());
+        verifyNoInteractions(outboxRepository);
     }
 
     @Test
@@ -84,5 +94,47 @@ class CancelOrderUseCaseTest {
         );
 
         verify(repository, never()).save(any());
+        verifyNoInteractions(outboxRepository);
+    }
+
+    @Test
+    void shouldRegisterOutboxEventWhenCancellingOrder() {
+        Order order = new Order(UUID.randomUUID());
+
+        when(repository.findById(order.getId()))
+                .thenReturn(Optional.of(order));
+
+        when(repository.save(order))
+                .thenReturn(order);
+
+        useCase.execute(order.getId());
+
+        ArgumentCaptor<OutboxEvent> captor =
+                ArgumentCaptor.forClass(OutboxEvent.class);
+
+        verify(outboxRepository).save(captor.capture());
+
+        OutboxEvent event = captor.getValue();
+
+        assertAll(
+                () -> assertEquals(
+                        order.getId(),
+                        event.aggregateId()
+                ),
+                () -> assertEquals(
+                        "OrderCancelled",
+                        event.eventType()
+                ),
+                () -> assertTrue(
+                        event.payload().contains(
+                                order.getId().toString()
+                        )
+                ),
+                () -> assertEquals(
+                        OrderStatus.CANCELLED,
+                        order.getStatus()
+                ),
+                () -> assertFalse(event.isPublished())
+        );
     }
 }

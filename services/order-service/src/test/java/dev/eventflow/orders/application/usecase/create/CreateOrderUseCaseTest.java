@@ -1,10 +1,14 @@
 
 package dev.eventflow.orders.application.usecase.create;
 
+import dev.eventflow.orders.domain.event.OutboxEvent;
 import dev.eventflow.orders.domain.model.Order;
 import dev.eventflow.orders.domain.model.OrderStatus;
 import dev.eventflow.orders.domain.repository.OrderRepository;
 
+import org.mockito.ArgumentCaptor;
+
+import dev.eventflow.orders.domain.repository.OutboxEventRepository;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -20,8 +24,14 @@ class CreateOrderUseCaseTest {
     private final OrderRepository repository =
             mock(OrderRepository.class);
 
+    private final OutboxEventRepository outboxRepository =
+            mock(OutboxEventRepository.class);
+
     private final CreateOrderUseCase useCase =
-            new CreateOrderUseCase(repository);
+            new CreateOrderUseCase(
+                    repository,
+                    outboxRepository
+            );
 
     @Test
     void shouldCreateOrderWithItems() {
@@ -60,6 +70,7 @@ class CreateOrderUseCaseTest {
         );
 
         verify(repository, times(1)).save(any(Order.class));
+        verify(outboxRepository).save(any(OutboxEvent.class));
     }
 
     @Test
@@ -75,5 +86,57 @@ class CreateOrderUseCaseTest {
         );
 
         verifyNoInteractions(repository);
+        verifyNoInteractions(repository, outboxRepository);
     }
+
+    @Test
+    void shouldRegisterOutboxEventWhenCreatingOrder() {
+        UUID customerId = UUID.randomUUID();
+
+        CreateOrderCommand command = new CreateOrderCommand(
+                customerId,
+                List.of(new CreateOrderItemCommand(
+                        UUID.randomUUID(),
+                        2,
+                        new BigDecimal("25.00")
+                ))
+        );
+
+        when(repository.save(any(Order.class)))
+                .thenAnswer(invocation ->
+                        invocation.getArgument(0)
+                );
+
+        Order saved = useCase.execute(command);
+
+        ArgumentCaptor<OutboxEvent> captor =
+                ArgumentCaptor.forClass(OutboxEvent.class);
+
+        verify(outboxRepository).save(captor.capture());
+
+        OutboxEvent event = captor.getValue();
+
+        assertAll(
+                () -> assertEquals(
+                        saved.getId(),
+                        event.aggregateId()
+                ),
+                () -> assertEquals(
+                        "OrderCreated",
+                        event.eventType()
+                ),
+                () -> assertTrue(
+                        event.payload().contains(
+                                saved.getId().toString()
+                        )
+                ),
+                () -> assertTrue(
+                        event.payload().contains(
+                                customerId.toString()
+                        )
+                ),
+                () -> assertFalse(event.isPublished())
+        );
+    }
+
 }

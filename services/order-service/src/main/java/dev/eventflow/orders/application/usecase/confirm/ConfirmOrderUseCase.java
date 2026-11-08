@@ -1,8 +1,10 @@
 
 package dev.eventflow.orders.application.usecase.confirm;
 
+import dev.eventflow.orders.domain.event.OutboxEvent;
 import dev.eventflow.orders.domain.model.Order;
 import dev.eventflow.orders.domain.repository.OrderRepository;
+import dev.eventflow.orders.domain.repository.OutboxEventRepository;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,9 +17,14 @@ import java.util.UUID;
 public class ConfirmOrderUseCase {
 
     private final OrderRepository repository;
+    private final OutboxEventRepository outboxRepository;
 
-    public ConfirmOrderUseCase(OrderRepository repository) {
+    public ConfirmOrderUseCase(
+            OrderRepository repository,
+            OutboxEventRepository outboxRepository
+    ) {
         this.repository = Objects.requireNonNull(repository);
+        this.outboxRepository = Objects.requireNonNull(outboxRepository);
     }
 
     @Transactional
@@ -34,6 +41,23 @@ public class ConfirmOrderUseCase {
 
         order.confirm();
 
-        return Optional.of(repository.save(order));
+        Order saved = repository.save(order);
+
+        String payload = """
+                {
+                    "orderId": "%s",
+                    "status": "CONFIRMED"
+                }
+                """.formatted(saved.getId());
+
+        OutboxEvent event = OutboxEvent.pending(
+                saved.getId(),
+                "OrderConfirmed",
+                payload
+        );
+
+        outboxRepository.save(event);
+
+        return Optional.of(saved);
     }
 }
